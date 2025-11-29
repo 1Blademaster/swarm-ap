@@ -7,15 +7,17 @@
 #include <AP_Proximity/AP_Proximity.h>
 
 #if MODE_FOLLOW_ENABLED
- # include <AP_Follow/AP_Follow.h>
+#include <AP_Follow/AP_Follow.h>
 #endif
+#include <AP_Swarm/AP_Swarm.h>
 #if WEATHERVANE_ENABLED
- #include <AC_AttitudeControl/AC_WeatherVane.h>
+#include <AC_AttitudeControl/AC_WeatherVane.h>
 #endif
 
 // Global parameter class.
 //
-class Parameters {
+class Parameters
+{
 public:
     // The version of the layout as described by the parameter enum.
     //
@@ -25,7 +27,7 @@ public:
     // The increment will prevent old parameters from being used incorrectly
     // by newer code.
     //
-    static const uint16_t        k_format_version = 120;
+    static const uint16_t k_format_version = 120;
 
     // Parameter identities.
     //
@@ -46,14 +48,15 @@ public:
     //          variables saved in EEPROM.
     //
     //
-    enum {
+    enum
+    {
         // Layout version number, always key zero.
         //
         k_param_format_version = 0,
         k_param_software_type, // deprecated
-        k_param_ins_old,                        // *** Deprecated, remove with next eeprom number change
-        k_param_ins,                            // libraries/AP_InertialSensor variables
-        k_param_NavEKF2_old, // deprecated - remove
+        k_param_ins_old,       // *** Deprecated, remove with next eeprom number change
+        k_param_ins,           // libraries/AP_InertialSensor variables
+        k_param_NavEKF2_old,   // deprecated - remove
         k_param_NavEKF2,
         k_param_g2, // 2nd block of parameters
         k_param_NavEKF3,
@@ -85,73 +88,73 @@ public:
         k_param_parachute,
 
         // Landing gear object
-        k_param_landinggear,    // 18
+        k_param_landinggear, // 18
 
         // Input Management object
-        k_param_input_manager,  // 19
+        k_param_input_manager, // 19
 
         // Misc
         //
-        k_param_log_bitmask_old = 20,           // Deprecated
-        k_param_log_last_filenumber,            // *** Deprecated - remove
-                                                // with next eeprom number
-                                                // change
-        k_param_toy_yaw_rate,                   // deprecated - remove
-        k_param_crosstrack_min_distance,    // deprecated - remove with next eeprom number change
-        k_param_rssi_pin,                   // unused, replaced by rssi_ library parameters
-        k_param_throttle_accel_enabled,     // deprecated - remove
+        k_param_log_bitmask_old = 20,    // Deprecated
+        k_param_log_last_filenumber,     // *** Deprecated - remove
+                                         // with next eeprom number
+                                         // change
+        k_param_toy_yaw_rate,            // deprecated - remove
+        k_param_crosstrack_min_distance, // deprecated - remove with next eeprom number change
+        k_param_rssi_pin,                // unused, replaced by rssi_ library parameters
+        k_param_throttle_accel_enabled,  // deprecated - remove
         k_param_wp_yaw_behavior,
         k_param_acro_trainer,
-        k_param_pilot_speed_up_cms,         // renamed from k_param_pilot_velocity_z_max
-        k_param_circle_rate,            // deprecated - remove
-        k_param_rangefinder_gain,       // deprecated - remove
-        k_param_ch8_option_old,         // deprecated
-        k_param_arming_check_old,       // deprecated - remove
+        k_param_pilot_speed_up_cms, // renamed from k_param_pilot_velocity_z_max
+        k_param_circle_rate,        // deprecated - remove
+        k_param_rangefinder_gain,   // deprecated - remove
+        k_param_ch8_option_old,     // deprecated
+        k_param_arming_check_old,   // deprecated - remove
         k_param_sprayer,
         k_param_angle_max,
         k_param_gps_hdop_good,
         k_param_battery,
-        k_param_fs_batt_mah,            // unused - moved to AP_BattMonitor
-        k_param_angle_rate_max,         // remove
-        k_param_rssi_range,             // unused, replaced by rssi_ library parameters
-        k_param_rc_feel_rp,             // deprecated
-        k_param_NavEKF,                 // deprecated - remove
-        k_param_mission,                // mission library
+        k_param_fs_batt_mah,    // unused - moved to AP_BattMonitor
+        k_param_angle_rate_max, // remove
+        k_param_rssi_range,     // unused, replaced by rssi_ library parameters
+        k_param_rc_feel_rp,     // deprecated
+        k_param_NavEKF,         // deprecated - remove
+        k_param_mission,        // mission library
         k_param_rc_13_old,
         k_param_rc_14_old,
         k_param_rally,
         k_param_poshold_brake_rate_degs,
         k_param_poshold_brake_angle_max,
         k_param_pilot_accel_u_cmss,
-        k_param_serial0_baud,           // deprecated - remove
-        k_param_serial1_baud,           // deprecated - remove
-        k_param_serial2_baud,           // deprecated - remove
+        k_param_serial0_baud, // deprecated - remove
+        k_param_serial1_baud, // deprecated - remove
+        k_param_serial2_baud, // deprecated - remove
         k_param_land_repositioning,
         k_param_rangefinder, // rangefinder object
         k_param_fs_ekf_thresh,
         k_param_terrain,
-        k_param_acro_rp_expo,           // deprecated - remove
+        k_param_acro_rp_expo, // deprecated - remove
         k_param_throttle_deadzone,
         k_param_optflow,
-        k_param_dcmcheck_thresh,        // deprecated - remove
+        k_param_dcmcheck_thresh, // deprecated - remove
         k_param_log_bitmask,
-        k_param_cli_enabled_old,        // deprecated - remove
+        k_param_cli_enabled_old, // deprecated - remove
         k_param_throttle_filt,
         k_param_throttle_behavior,
         k_param_pilot_takeoff_alt_cm, // 64
 
         // 65: AP_Limits Library
-        k_param_limits = 65,            // deprecated - remove
-        k_param_gpslock_limit,          // deprecated - remove
-        k_param_geofence_limit,         // deprecated - remove
-        k_param_altitude_limit,         // deprecated - remove
-        k_param_fence_old,              // only used for conversion
-        k_param_gps_glitch,             // deprecated
-        k_param_baro_glitch,            // 71 - deprecated
+        k_param_limits = 65,    // deprecated - remove
+        k_param_gpslock_limit,  // deprecated - remove
+        k_param_geofence_limit, // deprecated - remove
+        k_param_altitude_limit, // deprecated - remove
+        k_param_fence_old,      // only used for conversion
+        k_param_gps_glitch,     // deprecated
+        k_param_baro_glitch,    // 71 - deprecated
 
         // AP_ADSB Library
-        k_param_adsb,                   // 72
-        k_param_notify,                 // 73
+        k_param_adsb,   // 72
+        k_param_notify, // 73
 
         // 74: precision landing object
         k_param_precland = 74,
@@ -159,24 +162,24 @@ public:
         //
         // 75: Singlecopter, CoaxCopter
         //
-        k_param_single_servo_1 = 75,    // remove
-        k_param_single_servo_2,         // remove
-        k_param_single_servo_3,         // remove
-        k_param_single_servo_4,         // 78 - remove
+        k_param_single_servo_1 = 75, // remove
+        k_param_single_servo_2,      // remove
+        k_param_single_servo_3,      // remove
+        k_param_single_servo_4,      // 78 - remove
 
         //
         // 80: Heli
         //
-        k_param_heli_servo_1 = 80,  // remove
-        k_param_heli_servo_2,       // remove
-        k_param_heli_servo_3,       // remove
-        k_param_heli_servo_4,       // remove
-        k_param_heli_pitch_ff,      // remove
-        k_param_heli_roll_ff,       // remove
-        k_param_heli_yaw_ff,        // remove
-        k_param_heli_stab_col_min,  // remove
-        k_param_heli_stab_col_max,  // remove
-        k_param_heli_servo_rsc,     // 89 = full! - remove
+        k_param_heli_servo_1 = 80, // remove
+        k_param_heli_servo_2,      // remove
+        k_param_heli_servo_3,      // remove
+        k_param_heli_servo_4,      // remove
+        k_param_heli_pitch_ff,     // remove
+        k_param_heli_roll_ff,      // remove
+        k_param_heli_yaw_ff,       // remove
+        k_param_heli_stab_col_min, // remove
+        k_param_heli_stab_col_max, // remove
+        k_param_heli_servo_rsc,    // 89 = full! - remove
 
         //
         // 90: misc2
@@ -191,7 +194,7 @@ public:
 
         // 97: RSSI
         k_param_rssi = 97,
-                
+
         //
         // 100: Inertial Nav
         //
@@ -200,18 +203,18 @@ public:
         k_param_attitude_control,
         k_param_pos_control,
         k_param_circle_nav,
-        k_param_loiter_nav,     // 105
+        k_param_loiter_nav, // 105
         k_param_custom_control,
 
         // 110: Telemetry control
         //
-        k_param_gcs0_unused = 110,   // unused in ArduPilot-4.7
-        k_param_gcs1_unused,         // unused in ArduPilot-4.7
+        k_param_gcs0_unused = 110, // unused in ArduPilot-4.7
+        k_param_gcs1_unused,       // unused in ArduPilot-4.7
         k_param_sysid_this_mav_old,
         k_param_sysid_my_gcs_old,
         k_param_serial1_baud_old, // deprecated
-        k_param_telem_delay_old,     // used for conversion in ArduPilot-4.7
-        k_param_gcs2_unused,         // unused in ArduPilot-4.7
+        k_param_telem_delay_old,  // used for conversion in ArduPilot-4.7
+        k_param_gcs2_unused,      // unused in ArduPilot-4.7
         k_param_serial2_baud_old, // deprecated
         k_param_serial2_protocol, // deprecated
         k_param_serial_manager_old,
@@ -220,11 +223,11 @@ public:
         k_param_ch11_option_old,
         k_param_ch12_option_old,
         k_param_takeoff_trigger_dz_old,
-        k_param_gcs3_unused,         // unused in ArduPilot-4.7
-        k_param_gcs_pid_mask,    // 126
-        k_param_gcs4_unused,         // unused in ArduPilot-4.7
-        k_param_gcs5_unused,         // unused in ArduPilot-4.7
-        k_param_gcs6_unused,         // unused in ArduPilot-4.7
+        k_param_gcs3_unused,  // unused in ArduPilot-4.7
+        k_param_gcs_pid_mask, // 126
+        k_param_gcs4_unused,  // unused in ArduPilot-4.7
+        k_param_gcs5_unused,  // unused in ArduPilot-4.7
+        k_param_gcs6_unused,  // unused in ArduPilot-4.7
 
         //
         // 135 : reserved for Solo until features merged with master
@@ -236,48 +239,47 @@ public:
         //
         // 140: Sensor parameters
         //
-        k_param_imu = 140, // deprecated - can be deleted
-        k_param_battery_monitoring = 141,   // deprecated - can be deleted
-        k_param_volt_div_ratio, // deprecated - can be deleted
-        k_param_curr_amp_per_volt,  // deprecated - can be deleted
-        k_param_input_voltage,  // deprecated - can be deleted
-        k_param_pack_capacity,  // deprecated - can be deleted
+        k_param_imu = 140,                // deprecated - can be deleted
+        k_param_battery_monitoring = 141, // deprecated - can be deleted
+        k_param_volt_div_ratio,           // deprecated - can be deleted
+        k_param_curr_amp_per_volt,        // deprecated - can be deleted
+        k_param_input_voltage,            // deprecated - can be deleted
+        k_param_pack_capacity,            // deprecated - can be deleted
         k_param_compass_enabled_deprecated,
         k_param_compass,
         k_param_rangefinder_enabled_old, // deprecated
         k_param_frame_type,
-        k_param_optflow_enabled,    // deprecated
-        k_param_fs_batt_voltage,    // unused - moved to AP_BattMonitor
+        k_param_optflow_enabled, // deprecated
+        k_param_fs_batt_voltage, // unused - moved to AP_BattMonitor
         k_param_ch7_option_old,
-        k_param_auto_slew_rate,     // deprecated - can be deleted
-        k_param_rangefinder_type_old,     // deprecated
+        k_param_auto_slew_rate,       // deprecated - can be deleted
+        k_param_rangefinder_type_old, // deprecated
         k_param_super_simple = 155,
         k_param_axis_enabled = 157, // deprecated - remove with next eeprom number change
         k_param_copter_leds_mode,   // deprecated - remove with next eeprom number change
-        k_param_ahrs, // AHRS group // 159
+        k_param_ahrs,               // AHRS group // 159
 
         //
         // 160: Navigation parameters
         //
         k_param_rtl_altitude_cm = 160,
-        k_param_crosstrack_gain,    // deprecated - remove with next eeprom number change
+        k_param_crosstrack_gain, // deprecated - remove with next eeprom number change
         k_param_rtl_loiter_time,
         k_param_rtl_alt_final_cm,
         k_param_tilt_comp, // 164 deprecated - remove with next eeprom number change
-
 
         //
         // Camera and mount parameters
         //
         k_param_camera = 165,
         k_param_camera_mount,
-        k_param_camera_mount2,      // deprecated
+        k_param_camera_mount2, // deprecated
 
         //
         // Battery monitoring parameters
         //
         k_param_battery_volt_pin = 168, // deprecated - can be deleted
-        k_param_battery_curr_pin,   // 169 deprecated - can be deleted
+        k_param_battery_curr_pin,       // 169 deprecated - can be deleted
 
         //
         // 170: Radio settings
@@ -292,20 +294,20 @@ public:
         k_param_rc_8_old,
         k_param_rc_10_old,
         k_param_rc_11_old,
-        k_param_throttle_min,           // remove
-        k_param_throttle_max,           // remove
+        k_param_throttle_min, // remove
+        k_param_throttle_max, // remove
         k_param_failsafe_throttle,
-        k_param_throttle_fs_action,     // remove
+        k_param_throttle_fs_action, // remove
         k_param_failsafe_throttle_value,
-        k_param_throttle_trim,          // remove
+        k_param_throttle_trim, // remove
         k_param_esc_calibrate,
         k_param_rc_tuning_param,
-        k_param_rc_tuning_param_high_old,   // unused
-        k_param_rc_tuning_param_low_old,    // unused
+        k_param_rc_tuning_param_high_old, // unused
+        k_param_rc_tuning_param_low_old,  // unused
         k_param_rc_speed = 192,
         k_param_failsafe_battery_enabled, // unused - moved to AP_BattMonitor
-        k_param_throttle_mid,           // remove
-        k_param_failsafe_gps_enabled,   // remove
+        k_param_throttle_mid,             // remove
+        k_param_failsafe_gps_enabled,     // remove
         k_param_rc_9_old,
         k_param_rc_12_old,
         k_param_failsafe_gcs,
@@ -342,20 +344,20 @@ public:
         //
         // 220: PI/D Controllers
         //
-        k_param_acro_rp_p = 221,    // remove
-        k_param_axis_lock_p,        // remove
-        k_param_pid_rate_roll,      // remove
-        k_param_pid_rate_pitch,     // remove
-        k_param_pid_rate_yaw,       // remove
-        k_param_p_stabilize_roll,   // remove
-        k_param_p_stabilize_pitch,  // remove
-        k_param_p_stabilize_yaw,    // remove
-        k_param_p_pos_xy,           // remove
-        k_param_p_loiter_lon,       // remove
+        k_param_acro_rp_p = 221,        // remove
+        k_param_axis_lock_p,            // remove
+        k_param_pid_rate_roll,          // remove
+        k_param_pid_rate_pitch,         // remove
+        k_param_pid_rate_yaw,           // remove
+        k_param_p_stabilize_roll,       // remove
+        k_param_p_stabilize_pitch,      // remove
+        k_param_p_stabilize_yaw,        // remove
+        k_param_p_pos_xy,               // remove
+        k_param_p_loiter_lon,           // remove
         k_param_pid_loiter_rate_lat,    // remove
         k_param_pid_loiter_rate_lon,    // remove
-        k_param_pid_nav_lat,        // remove
-        k_param_pid_nav_lon,        // remove
+        k_param_pid_nav_lat,            // remove
+        k_param_pid_nav_lon,            // remove
         k_param_p_alt_hold,             // remove
         k_param_p_vel_z,                // remove
         k_param_pid_optflow_roll,       // remove
@@ -365,16 +367,16 @@ public:
         k_param_pid_accel_z,            // remove
         k_param_acro_balance_roll,
         k_param_acro_balance_pitch,
-        k_param_acro_yaw_p,             // remove
-        k_param_autotune_axis_bitmask, // remove
+        k_param_acro_yaw_p,              // remove
+        k_param_autotune_axis_bitmask,   // remove
         k_param_autotune_aggressiveness, // remove
-        k_param_pi_vel_xy,              // remove
+        k_param_pi_vel_xy,               // remove
         k_param_fs_ekf_action,
         k_param_rtl_climb_min_cm,
         k_param_rpm_sensor_old, // remove
         k_param_autotune_min_d, // remove
-        k_param_arming, // 252  - AP_Arming
-        k_param_logger = 253, // 253 - Logging Group
+        k_param_arming,         // 252  - AP_Arming
+        k_param_logger = 253,   // 253 - Logging Group
 
         // 254,255: reserved
 
@@ -389,95 +391,95 @@ public:
         // 511: reserved
     };
 
-    AP_Int16        format_version;
+    AP_Int16 format_version;
 
-    AP_Float        throttle_filt;
-    AP_Int16        throttle_behavior;
-    AP_Float        pilot_takeoff_alt_cm;
+    AP_Float throttle_filt;
+    AP_Int16 throttle_behavior;
+    AP_Float pilot_takeoff_alt_cm;
 
 #if MODE_RTL_ENABLED
-    AP_Int32        rtl_altitude_cm;
-    AP_Int16        rtl_speed_cms;
-    AP_Float        rtl_cone_slope;
-    AP_Int16        rtl_alt_final_cm;
-    AP_Int16        rtl_climb_min_cm;              // rtl minimum climb in cm
-    AP_Int32        rtl_loiter_time;
+    AP_Int32 rtl_altitude_cm;
+    AP_Int16 rtl_speed_cms;
+    AP_Float rtl_cone_slope;
+    AP_Int16 rtl_alt_final_cm;
+    AP_Int16 rtl_climb_min_cm; // rtl minimum climb in cm
+    AP_Int32 rtl_loiter_time;
     AP_Enum<ModeRTL::RTLAltType> rtl_alt_type;
 #endif
 
-    AP_Int8         failsafe_gcs;               // ground station failsafe behavior
-    AP_Int16        gps_hdop_good;              // GPS Hdop value at or below this value represent a good position
+    AP_Int8 failsafe_gcs;   // ground station failsafe behavior
+    AP_Int16 gps_hdop_good; // GPS Hdop value at or below this value represent a good position
 
-    AP_Int8         super_simple;
+    AP_Int8 super_simple;
 
-    AP_Int8         wp_yaw_behavior;            // controls how the autopilot controls yaw during missions
+    AP_Int8 wp_yaw_behavior; // controls how the autopilot controls yaw during missions
 
 #if MODE_POSHOLD_ENABLED
-    AP_Int16        poshold_brake_rate_degs;    // PosHold flight mode's rotation rate during braking in deg/sec
-    AP_Int16        poshold_brake_angle_max;    // PosHold flight mode's max lean angle during braking in centi-degrees
+    AP_Int16 poshold_brake_rate_degs; // PosHold flight mode's rotation rate during braking in deg/sec
+    AP_Int16 poshold_brake_angle_max; // PosHold flight mode's max lean angle during braking in centi-degrees
 #endif
 
     // Waypoints
     //
-    AP_Int16        land_speed_cms;
-    AP_Int16        land_speed_high_cms;
-    AP_Int16        pilot_speed_up_cms;         // maximum vertical ascending velocity the pilot may request
-    AP_Int16        pilot_accel_u_cmss;         // vertical acceleration the pilot may request
+    AP_Int16 land_speed_cms;
+    AP_Int16 land_speed_high_cms;
+    AP_Int16 pilot_speed_up_cms; // maximum vertical ascending velocity the pilot may request
+    AP_Int16 pilot_accel_u_cmss; // vertical acceleration the pilot may request
 
     // Throttle
     //
-    AP_Int8         failsafe_throttle;
-    AP_Int16        failsafe_throttle_value;
-    AP_Int16        throttle_deadzone;
+    AP_Int8 failsafe_throttle;
+    AP_Int16 failsafe_throttle_value;
+    AP_Int16 throttle_deadzone;
 
     // Flight modes
     //
-    AP_Int8         flight_mode1;
-    AP_Int8         flight_mode2;
-    AP_Int8         flight_mode3;
-    AP_Int8         flight_mode4;
-    AP_Int8         flight_mode5;
-    AP_Int8         flight_mode6;
-    AP_Int8         simple_modes;
-    AP_Int8         flight_mode_chan;
-    AP_Int8         initial_mode;
+    AP_Int8 flight_mode1;
+    AP_Int8 flight_mode2;
+    AP_Int8 flight_mode3;
+    AP_Int8 flight_mode4;
+    AP_Int8 flight_mode5;
+    AP_Int8 flight_mode6;
+    AP_Int8 simple_modes;
+    AP_Int8 flight_mode_chan;
+    AP_Int8 initial_mode;
 
     // Misc
     //
-    AP_Int32        log_bitmask;
-    AP_Int8         esc_calibrate;
+    AP_Int32 log_bitmask;
+    AP_Int8 esc_calibrate;
 #if AP_RC_TRANSMITTER_TUNING_ENABLED
-    AP_Int8         rc_tuning_param;
-#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
-    AP_Int8         frame_type;
-    AP_Int8         disarm_delay;
+    AP_Int8 rc_tuning_param;
+#endif // AP_RC_TRANSMITTER_TUNING_ENABLED
+    AP_Int8 frame_type;
+    AP_Int8 disarm_delay;
 
-    AP_Int8         land_repositioning;
-    AP_Int8         fs_ekf_action;
-    AP_Int8         fs_crash_check;
-    AP_Float        fs_ekf_thresh;
-    AP_Int16        gcs_pid_mask;
+    AP_Int8 land_repositioning;
+    AP_Int8 fs_ekf_action;
+    AP_Int8 fs_crash_check;
+    AP_Float fs_ekf_thresh;
+    AP_Int16 gcs_pid_mask;
 
 #if MODE_THROW_ENABLED
-    AP_Enum<ModeThrow::PreThrowMotorState>         throw_motor_start;
-    AP_Int16         throw_altitude_min; // minimum altitude in m above which a throw can be detected
-    AP_Int16         throw_altitude_max; // maximum altitude in m below which a throw can be detected
+    AP_Enum<ModeThrow::PreThrowMotorState> throw_motor_start;
+    AP_Int16 throw_altitude_min; // minimum altitude in m above which a throw can be detected
+    AP_Int16 throw_altitude_max; // maximum altitude in m below which a throw can be detected
 
-    AP_Float         throw_altitude_descend;    // target altitude (meters) to descend during a drop, (must be positive)
-    AP_Float         throw_altitude_ascend;     // target altitude (meters) to ascend during a throw upwards, (must be positive)
+    AP_Float throw_altitude_descend; // target altitude (meters) to descend during a drop, (must be positive)
+    AP_Float throw_altitude_ascend;  // target altitude (meters) to ascend during a throw upwards, (must be positive)
 #endif
 
-    AP_Int16                rc_speed; // speed of fast RC Channels in Hz
+    AP_Int16 rc_speed; // speed of fast RC Channels in Hz
 
 #if MODE_ACRO_ENABLED || MODE_SPORT_ENABLED
     // Acro parameters
-    AP_Float                acro_balance_roll;
-    AP_Float                acro_balance_pitch;
+    AP_Float acro_balance_roll;
+    AP_Float acro_balance_pitch;
 #endif
 
 #if MODE_ACRO_ENABLED
     // Acro parameters
-    AP_Int8                 acro_trainer;
+    AP_Int8 acro_trainer;
 #endif
 
     // Note: keep initializers here in the same order as they are declared
@@ -490,7 +492,8 @@ public:
 /*
   2nd block of parameters, to avoid going past 256 top level keys
  */
-class ParametersG2 {
+class ParametersG2
+{
 public:
     ParametersG2(void);
 
@@ -552,7 +555,7 @@ public:
 
     // RC input channels
     RC_Channels_Copter rc_channels;
-    
+
     // control over servo output ranges
     SRV_Channels servo_channels;
 
@@ -567,7 +570,7 @@ public:
 #endif
 
     // Additional pilot velocity items
-    AP_Int16    pilot_speed_dn_cms;
+    AP_Int16 pilot_speed_dn_cms;
 
     // Land alt final stage
     AP_Int16 land_alt_low_cm;
@@ -586,6 +589,9 @@ public:
     AP_Follow follow;
 #endif
 
+    // swarm
+    AP_Swarm swarm;
+
 #if USER_PARAMS_ENABLED
     // User custom parameters
     UserParameters user_parameters;
@@ -599,7 +605,7 @@ public:
 #if AP_RC_TRANSMITTER_TUNING_ENABLED
     AP_Float rc_tuning_min;
     AP_Float rc_tuning_max;
-#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
+#endif // AP_RC_TRANSMITTER_TUNING_ENABLED
 
 #if AP_OAPATHPLANNER_ENABLED
     // object avoidance path planning
@@ -666,10 +672,10 @@ public:
     AP_Float guided_timeout;
 #endif
 
-    AP_Int8                 surftrak_mode;
-    AP_Int8                 failsafe_dr_enable;
-    AP_Int16                failsafe_dr_timeout;
-    AP_Float                surftrak_tc;
+    AP_Int8 surftrak_mode;
+    AP_Int8 failsafe_dr_enable;
+    AP_Int16 failsafe_dr_timeout;
+    AP_Float surftrak_tc;
 
     // ramp time of throttle during take-off
     AP_Float takeoff_throttle_slew_time;
@@ -700,7 +706,7 @@ public:
     AP_Int8 rc_tuning2_param;
     AP_Float rc_tuning2_min;
     AP_Float rc_tuning2_max;
-#endif  // AP_RC_TRANSMITTER_TUNING_ENABLED
+#endif // AP_RC_TRANSMITTER_TUNING_ENABLED
 };
 
-extern const AP_Param::Info        var_info[];
+extern const AP_Param::Info var_info[];

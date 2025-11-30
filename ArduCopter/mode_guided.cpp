@@ -813,7 +813,7 @@ void ModeGuided::pos_control_run()
                 // Override position target with swarm target
                 guided_pos_target_neu_m = swarm_pos_neu_m;
                 guided_is_terrain_alt = is_terrain_alt;
-                guided_vel_target_neu_ms = swarm_vel;
+                // guided_vel_target_neu_ms = swarm_vel;
                 update_time_ms = millis(); // prevent timeout
 
                 // if (copter.g2.swarm.get_debug_level() >= 2)

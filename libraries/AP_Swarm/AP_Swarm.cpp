@@ -66,7 +66,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Description: Gain for attraction to formation position
     // @Range: 0 2
     // @User: Advanced
-    AP_GROUPINFO("ATTR_GAIN", 8, AP_Swarm, _attract_gain, 1.0f),
+    AP_GROUPINFO("ATTR_GAIN", 8, AP_Swarm, _attract_gain, 0.5f),
 
     // @Param: REPEL_GAIN
     // @DisplayName: Repulsion Gain
@@ -363,7 +363,7 @@ AP_Swarm::TargetEntry *AP_Swarm::get_leader_entry()
     {
         if (_targets[i].active && _targets[i].sysid == _leader_sysid)
         {
-            printf("Swarm (%d): Leader sysid %d found in slot %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i);
+            // printf("Swarm (%d): Leader sysid %d found in slot %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i);
             return &_targets[i];
         }
         else
@@ -435,8 +435,27 @@ Vector3f AP_Swarm::compute_formation_offset(uint8_t slot_index)
     switch (formation)
     {
     case FormationType::LEADER_ONLY:
-        // No offset, just follow leader
-        offset.zero();
+        // For LEADER_ONLY, space followers out in a simple pattern behind/beside the leader
+        // Use SWARM_SPACING parameter
+        if (slot_index == 0)
+        {
+            // This is the leader
+            offset.zero();
+        }
+        else
+        {
+            // Simple pattern: spread followers behind and to the side
+            float spacing = _spacing;
+
+            // Alternate left/right placement
+            uint8_t follower_index = slot_index - 1; // 0-indexed for followers
+            bool is_left = (follower_index % 2) == 0;
+
+            // Place followers behind leader in staggered formation
+            offset.x = -spacing * ((follower_index / 2) + 1);      // Behind (negative North)
+            offset.y = is_left ? -spacing * 0.5f : spacing * 0.5f; // Left or right
+            offset.z = 0.0f;                                       // Same altitude
+        }
         break;
 
     case FormationType::CIRCLE:
@@ -563,12 +582,12 @@ int8_t AP_Swarm::get_my_slot_index()
 
     get_sorted_active_sysids(sysids, count);
 
-    printf("Swarm (%d): Active sysids:", (int)mavlink_system.sysid);
-    for (uint8_t i = 0; i < count; i++)
-    {
-        printf(" %d at index %d", (int)sysids[i], i);
-    }
-    printf("\n");
+    // printf("Swarm (%d): Active sysids:", (int)mavlink_system.sysid);
+    // for (uint8_t i = 0; i < count; i++)
+    // {
+    //     printf(" %d at index %d", (int)sysids[i], i);
+    // }
+    // printf("\n");
 
     // Find our sysid in the sorted list
     uint8_t my_sysid = mavlink_system.sysid;
@@ -606,24 +625,43 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned)
         return false;
     }
 
+    Vector3f my_current_pos;
+    if (!_ahrs.get_relative_position_NED_origin_float(my_current_pos))
+    {
+        return false;
+    }
+
     // Compute formation offset
     Vector3f offset = compute_formation_offset(slot_index);
 
     // Basic position: leader position + formation offset
     pos_ned = leader->pos_ned + offset;
     vel_ned = leader->vel_ned; // Match leader velocity
+    // vel_ned = Vector3f(0.0f, 0.0f, 0.0f); // For now, zero desired velocity
 
-    // Apply neighbor repulsion if enabled
-    if (_repel_gain > 0.0f)
-    {
-        apply_neighbor_repulsion(pos_ned);
-    }
+    // Vector2f pos_error_xy = Vector2f(pos_ned.x - my_current_pos.x, pos_ned.y - my_current_pos.y);
+    // // float horiz_error = pos_error_xy.length();
+
+    // Vector2f attraction_vel = pos_error_xy * _attract_gain;
+
+    // const float max_attraction_speed = 5.0f; // m/s
+    // float attraction_vel_mag = attraction_vel.length();
+    // if (attraction_vel_mag > max_attraction_speed)
+    // {
+    //     attraction_vel *= (max_attraction_speed / attraction_vel_mag);
+    // }
+
+    // vel_ned.x += attraction_vel.x;
+    // vel_ned.y += attraction_vel.y;
+
+    // Apply neighbor repulsion
+    apply_neighbor_repulsion(pos_ned, vel_ned);
 
     return true;
 }
 
 // Apply repulsive forces from nearby neighbors
-void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
+void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned, Vector3f &vel_ned)
 {
     // Get our CURRENT position (not desired position) for repulsion calculation
     Vector3f my_current_pos;
@@ -658,16 +696,18 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
         }
 
         // Apply repulsion if too close (including leader!)
-        if (dist_xy < _repel_distance && dist_xy > 0.1f)
+        if (dist_xy < _repel_distance)
         {
             // Repulsion vector points AWAY from neighbor
             Vector2f repulsion_xy = to_neighbor_xy * -1.0f;
-            // repulsion_xy.x = my_current_pos.x - _targets[i].pos_ned.x;
-            // repulsion_xy.y = my_current_pos.y - _targets[i].pos_ned.y;
-            // repulsion_xy.normalize();
+            repulsion_xy.normalize(); // Make it unit length
+
+            float distance_difference = _repel_distance - dist_xy;
+            repulsion_xy *= distance_difference; // Scale by how close we are
+            repulsion_xy *= _repel_gain;         // Scale by gain
 
             // Scale by gain and how close we are (closer = stronger repulsion)
-            float repulsion_magnitude = _repel_gain * (_repel_distance - dist_xy);
+            // float repulsion_magnitude = _repel_gain * distance_difference;
             // repulsion_xy *= repulsion_magnitude;
 
             // Apply repulsion to DESIRED position (push away from where we're going)
@@ -676,11 +716,12 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
 
             if (_debug >= 2)
             {
-                printf("Swarm (%d): AFTER repulsion pos_ned: (%.1f,%.1f) - repulsion: (%.1f,%.1f) from sysid %d (%.1f,%.1f), dist %.1f, mag %.1f\n",
+                printf("Swarm (%d): actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from sysid %d (%.2f,%.2f), dist %.2f\n",
                        (int)mavlink_system.sysid,
+                       (double)my_current_pos.x, (double)my_current_pos.y,
                        (double)pos_ned.x, (double)pos_ned.y,
                        (double)repulsion_xy.x, (double)repulsion_xy.y,
-                       _targets[i].sysid, (double)_targets[i].pos_ned.x, (double)_targets[i].pos_ned.y, (double)dist_xy, (double)repulsion_magnitude);
+                       _targets[i].sysid, (double)_targets[i].pos_ned.x, (double)_targets[i].pos_ned.y, (double)dist_xy);
             }
         }
     }

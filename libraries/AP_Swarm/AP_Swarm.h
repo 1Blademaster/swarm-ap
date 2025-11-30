@@ -138,7 +138,7 @@ private:
     bool compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned);
 
     // Apply repulsive forces from nearby neighbors
-    void apply_neighbor_repulsion(Vector3f &pos_ned);
+    void apply_neighbor_repulsion(Vector3f &pos_ned, Vector3f &vel_ned);
 
     // References to vehicle systems (must be before parameters for initialization order)
     const AP_AHRS &_ahrs;

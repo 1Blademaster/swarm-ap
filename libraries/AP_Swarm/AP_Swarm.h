@@ -47,6 +47,8 @@ public:
     // Get number of active neighbors
     uint8_t get_active_neighbor_count() const { return _active_neighbor_count; }
 
+    uint8_t get_debug_level() const { return _debug; }
+
     // Parameter block
     static const struct AP_Param::GroupInfo var_info[];
 

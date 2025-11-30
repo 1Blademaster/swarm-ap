@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Units: m
     // @Range: 1 50
     // @User: Standard
-    AP_GROUPINFO("SPACING", 4, AP_Swarm, _spacing, 5.0f),
+    AP_GROUPINFO("SPACING", 4, AP_Swarm, _spacing, 10.0f),
 
     // @Param: LEADER_ID
     // @DisplayName: Leader System ID
@@ -81,7 +81,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Units: m
     // @Range: 1 20
     // @User: Advanced
-    AP_GROUPINFO("REPEL_DIST", 10, AP_Swarm, _repel_distance, 5.0f),
+    AP_GROUPINFO("REPEL_DIST", 10, AP_Swarm, _repel_distance, 10.0f),
 
     // @Param: ALT_TYPE
     // @DisplayName: Altitude Type
@@ -145,6 +145,13 @@ void AP_Swarm::update()
         return;
     }
     _last_update_ms = now_ms;
+
+    Vector3f my_pos;
+    if (!_ahrs.get_relative_position_NED_origin_float(my_pos))
+    {
+        // Can't get position, skip update
+        return;
+    }
 
     // Remove stale targets
     remove_stale_targets();
@@ -618,17 +625,17 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned)
 // Apply repulsive forces from nearby neighbors
 void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
 {
+    // Use the desired position (pos_ned) as the reference point to apply repulsion
+    // as that is where we want to go, so we check if neighbors are too close to that point.
     // Get our current position from AHRS
-    Vector3f my_pos;
-    if (!_ahrs.get_relative_position_NED_origin_float(my_pos))
-    {
-        printf("Swarm (%d): Unable to get own position for repulsion\n", (int)mavlink_system.sysid);
-        // Can't get position, skip repulsion
-        return;
-    }
 
-    const float repel_dist = _repel_distance;
-    const float repel_gain = _repel_gain;
+    // Vector3f my_pos;
+    // if (!_ahrs.get_relative_position_NED_origin_float(my_pos))
+    // {
+    //     printf("Swarm (%d): Unable to get own position for repulsion\n", (int)mavlink_system.sysid);
+    //     // Can't get position, skip repulsion
+    //     return;
+    // }
 
     for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
     {
@@ -643,23 +650,42 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
             continue;
         }
 
-        // Calculate distance to neighbor
-        Vector3f to_neighbor = _targets[i].pos_ned - my_pos;
-        float dist = to_neighbor.length();
+        // Calculate horizontal distance to neighbor only (ignore vertical for repulsion)
+        Vector2f to_neighbor_xy(_targets[i].pos_ned.x - pos_ned.x,
+                                _targets[i].pos_ned.y - pos_ned.y);
+        float dist_xy = to_neighbor_xy.length();
+
+        if (_debug >= 3)
+        {
+            printf("Swarm (%d): Checking repulsion from sysid %d, horizontal dist %.1f (threshold %.1f)\n",
+                   (int)mavlink_system.sysid, _targets[i].sysid, (double)dist_xy, (double)_repel_distance.get());
+        }
 
         // Apply repulsion if too close
-        if (dist < repel_dist && dist > 0.1f)
+        if (dist_xy < _repel_distance && dist_xy > 0.1f)
         {
-            Vector3f repulsion = (my_pos - _targets[i].pos_ned);
-            repulsion.normalize();
-            repulsion *= repel_gain * (repel_dist - dist);
-            pos_ned += repulsion;
+            Vector2f repulsion_xy = to_neighbor_xy * -1.0f; // Repel away from neighbor
+            repulsion_xy.normalize();
+
+            // Scale by gain and how close we are (closer = stronger repulsion)
+            float repulsion_magnitude = _repel_gain * (_repel_distance - dist_xy);
+            repulsion_xy *= repulsion_magnitude;
+
+            // Apply repulsion to desired position
+            pos_ned.x += repulsion_xy.x;
+            pos_ned.y += repulsion_xy.y;
 
             if (_debug >= 2)
             {
-                gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Repulsion from sysid %d, dist %.1f",
-                                (int)mavlink_system.sysid, _targets[i].sysid, (double)dist);
+                printf("Swarm (%d): Applied repulsion from sysid %d, dist %.1f, magnitude %.1f, offset (%.1f,%.1f,0.0)\n",
+                       (int)mavlink_system.sysid, _targets[i].sysid, (double)dist_xy, (double)repulsion_magnitude,
+                       (double)repulsion_xy.x, (double)repulsion_xy.y);
             }
+        }
+        else
+        {
+            printf("Swarm (%d): No repulsion from sysid %d, dist %.1f (threshold %.1f)\n",
+                   (int)mavlink_system.sysid, _targets[i].sysid, (double)dist_xy, (double)_repel_distance.get());
         }
     }
 }
@@ -673,7 +699,7 @@ bool AP_Swarm::have_target() const
 // Get desired position and velocity for this vehicle in swarm
 bool AP_Swarm::get_target_location_and_velocity(Location &loc, Vector3f &vel_ned)
 {
-    if (!have_target())
+    if (!_enabled || !have_target())
     {
         return false;
     }
@@ -690,7 +716,9 @@ bool AP_Swarm::get_target_location_and_velocity(Location &loc, Vector3f &vel_ned
     loc.offset(_desired_pos_ned.x, _desired_pos_ned.y);
     loc.alt = ekf_origin.alt - _desired_pos_ned.z * 100.0f; // Convert m to cm and flip Down to up
 
-    vel_ned = _desired_vel_ned;
+    vel_ned.x = _desired_vel_ned.x;
+    vel_ned.y = _desired_vel_ned.y;
+    vel_ned.z = -_desired_vel_ned.z; // Flip down to up
 
     return true;
 }

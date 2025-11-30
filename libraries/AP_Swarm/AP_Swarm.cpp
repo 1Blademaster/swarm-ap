@@ -149,6 +149,12 @@ void AP_Swarm::update()
     // Remove stale targets
     remove_stale_targets();
 
+    if (mavlink_system.sysid == _leader_sysid)
+    {
+        // Leader does not compute formation position
+        _have_target = false;
+        return;
+    }
     // Compute desired position based on formation
     _have_target = compute_desired_position(_desired_pos_ned, _desired_vel_ned);
 
@@ -350,11 +356,12 @@ AP_Swarm::TargetEntry *AP_Swarm::get_leader_entry()
     {
         if (_targets[i].active && _targets[i].sysid == _leader_sysid)
         {
+            printf("Swarm (%d): Leader sysid %d found in slot %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i);
             return &_targets[i];
         }
         else
         {
-            gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Leader sysid %d not found in slot %d, target is active: %d", (int)mavlink_system.sysid, (int)_leader_sysid, i, _targets[i].active);
+            printf("Swarm (%d): Leader sysid %d not found in slot %d, target %d is active: %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i, (int)_targets[i].sysid, _targets[i].active);
         }
     }
     return nullptr;
@@ -364,7 +371,7 @@ AP_Swarm::TargetEntry *AP_Swarm::get_leader_entry()
 void AP_Swarm::remove_stale_targets()
 {
     const uint32_t now_ms = AP_HAL::millis();
-    const uint32_t timeout_ms = _neighbor_timeout_s; // Convert from s to ms
+    const uint32_t timeout_ms = _neighbor_timeout_s * 1000; // Convert from s to ms
 
     _active_neighbor_count = 0;
 
@@ -509,6 +516,23 @@ void AP_Swarm::get_sorted_active_sysids(uint8_t *sysids, uint8_t &count)
         }
     }
 
+    // Add our own sysid if not already in the list
+    uint8_t my_sysid = mavlink_system.sysid;
+    bool found_self = false;
+    for (uint8_t i = 0; i < count; i++)
+    {
+        if (sysids[i] == my_sysid)
+        {
+            found_self = true;
+            break;
+        }
+    }
+
+    if (!found_self && count < AP_SWARM_MAX_NEIGHBORS_DEFAULT)
+    {
+        sysids[count++] = my_sysid;
+    }
+
     // Simple bubble sort (fine for small arrays)
     for (uint8_t i = 0; i < count - 1; i++)
     {
@@ -531,6 +555,13 @@ int8_t AP_Swarm::get_my_slot_index()
     uint8_t count;
 
     get_sorted_active_sysids(sysids, count);
+
+    printf("Swarm (%d): Active sysids:", (int)mavlink_system.sysid);
+    for (uint8_t i = 0; i < count; i++)
+    {
+        printf(" %d at index %d", (int)sysids[i], i);
+    }
+    printf("\n");
 
     // Find our sysid in the sorted list
     uint8_t my_sysid = mavlink_system.sysid;
@@ -564,6 +595,7 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned)
     int8_t slot_index = get_my_slot_index();
     if (slot_index < 0)
     {
+        printf("Swarm (%d): My sysid %d not found in active list\n", (int)mavlink_system.sysid, (int)mavlink_system.sysid);
         return false;
     }
 
@@ -590,6 +622,7 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
     Vector3f my_pos;
     if (!_ahrs.get_relative_position_NED_origin_float(my_pos))
     {
+        printf("Swarm (%d): Unable to get own position for repulsion\n", (int)mavlink_system.sysid);
         // Can't get position, skip repulsion
         return;
     }

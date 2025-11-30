@@ -8,7 +8,7 @@
 #include <AP_AHRS/AP_AHRS.h>
 
 // Maximum number of neighbors that can be tracked
-#define AP_SWARM_MAX_NEIGHBORS_DEFAULT 20
+#define AP_SWARM_MAX_NEIGHBORS_DEFAULT 5
 
 class AP_Swarm
 {

@@ -816,14 +816,14 @@ void ModeGuided::pos_control_run()
                 guided_vel_target_neu_ms = swarm_vel;
                 update_time_ms = millis(); // prevent timeout
 
-                if (copter.g2.swarm.get_debug_level() >= 2)
-                {
-                    printf("Swarm (%d): Guided using swarm target NEU: %.1f,%.1f,%.1f\n",
-                           (int)mavlink_system.sysid,
-                           (double)swarm_pos_neu_m.x,
-                           (double)swarm_pos_neu_m.y,
-                           (double)swarm_pos_neu_m.z);
-                }
+                // if (copter.g2.swarm.get_debug_level() >= 2)
+                // {
+                //     printf("Swarm (%d): Guided using swarm target NEU: %.1f,%.1f,%.1f\n",
+                //            (int)mavlink_system.sysid,
+                //            (double)swarm_pos_neu_m.x,
+                //            (double)swarm_pos_neu_m.y,
+                //            (double)swarm_pos_neu_m.z);
+                // }
             }
         }
     }

@@ -21,7 +21,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Description: Type of formation for swarm
     // @Values: 0:Leader Only,1:Circle,2:Horizontal Line,3:Vertical Line,4:Grid
     // @User: Standard
-    AP_GROUPINFO("FORMATION", 2, AP_Swarm, _formation_type, (uint8_t)FormationType::LEADER_ONLY),
+    AP_GROUPINFO("FORMATION", 2, AP_Swarm, _formation_type, (uint8_t)FormationType::VERT_LINE),
 
     // @Param: RADIUS
     // @DisplayName: Formation Radius
@@ -105,7 +105,7 @@ void AP_Swarm::init()
     }
 
     // Initialize all target entries
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         _targets[i] = TargetEntry();
     }
@@ -153,7 +153,7 @@ void AP_Swarm::update()
     _have_target = compute_desired_position(_desired_pos_ned);
 
     // Debug output
-    if (_debug >= 2 && _have_target)
+    if (_debug >= 3 && _have_target)
     {
         printf("Swarm (%d): Active neighbors: %d, Desired NED: %.1f,%.1f,%.1f\n",
                (int)mavlink_system.sysid,
@@ -216,7 +216,7 @@ void AP_Swarm::handle_global_position_int(const mavlink_global_position_int_t &p
     target->msg_time_ms = packet.time_boot_ms;
     target->active = true;
 
-    if (_debug >= 2)
+    if (_debug >= 3)
     {
         printf("Swarm (%d): GLOBAL_POS from sysid %d at NED: %.1f,%.1f,%.1f\n",
                (int)mavlink_system.sysid,
@@ -294,7 +294,7 @@ void AP_Swarm::handle_follow_target(const mavlink_follow_target_t &packet, uint8
     target->active = true;
     target->has_follow_target = true;
 
-    if (_debug >= 2)
+    if (_debug >= 3)
     {
         printf("Swarm (%d): FOLLOW_TARGET from sysid %d at NED: %.1f,%.1f,%.1f\n",
                (int)mavlink_system.sysid,
@@ -309,7 +309,7 @@ void AP_Swarm::handle_follow_target(const mavlink_follow_target_t &packet, uint8
 AP_Swarm::TargetEntry *AP_Swarm::get_target_entry(uint8_t sysid)
 {
     // First, try to find existing entry
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (_targets[i].active && _targets[i].sysid == sysid)
         {
@@ -318,7 +318,7 @@ AP_Swarm::TargetEntry *AP_Swarm::get_target_entry(uint8_t sysid)
     }
 
     // Not found, create a new entry in first available slot
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (!_targets[i].active)
         {
@@ -346,7 +346,7 @@ AP_Swarm::TargetEntry *AP_Swarm::get_target_entry(uint8_t sysid)
 // Find the leader target entry
 AP_Swarm::TargetEntry *AP_Swarm::get_leader_entry()
 {
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (_targets[i].active && _targets[i].sysid == _leader_sysid)
         {
@@ -369,7 +369,7 @@ void AP_Swarm::remove_stale_targets()
 
     _active_neighbor_count = 0;
 
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (_targets[i].active)
         {
@@ -530,7 +530,7 @@ void AP_Swarm::get_sorted_active_sysids(uint8_t *sysids, uint8_t &count)
     count = 0;
 
     // Collect active sysids
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT && count < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors && count < _max_neighbors; i++)
     {
         if (_targets[i].active)
         {
@@ -550,7 +550,7 @@ void AP_Swarm::get_sorted_active_sysids(uint8_t *sysids, uint8_t &count)
         }
     }
 
-    if (!found_self && count < AP_SWARM_MAX_NEIGHBORS_DEFAULT)
+    if (!found_self && count < _max_neighbors)
     {
         sysids[count++] = my_sysid;
     }
@@ -568,23 +568,50 @@ void AP_Swarm::get_sorted_active_sysids(uint8_t *sysids, uint8_t &count)
             }
         }
     }
+
+    // Print slots
+    if (_debug >= 2)
+    {
+        printf("Swarm (%d): Active sysids in slots:", (int)mavlink_system.sysid);
+        for (uint8_t i = 0; i < count; i++)
+        {
+            printf("[%d] %d", i, (int)sysids[i]);
+        }
+        printf("\n");
+    }
 }
 
 // Find this vehicle's slot index in the formation
 int8_t AP_Swarm::get_my_slot_index()
 {
-    uint8_t sysids[AP_SWARM_MAX_NEIGHBORS_DEFAULT];
+    uint8_t sysids[(int)_max_neighbors];
     uint8_t count;
 
     get_sorted_active_sysids(sysids, count);
 
     // Find our sysid in the sorted list
     uint8_t my_sysid = mavlink_system.sysid;
+
+    // If we're the leader, return 0
+    if (my_sysid == _leader_sysid)
+    {
+        return 0;
+    }
+
+    // For followers, count how many vehicles come before us (excluding leader)
+    int8_t follower_index = 0;
     for (uint8_t i = 0; i < count; i++)
     {
         if (sysids[i] == my_sysid)
         {
-            return i;
+            // Found ourselves, return our follower index (0-based, excluding leader)
+            return follower_index + 1; // +1 because leader is at index 0
+        }
+
+        // Don't count the leader in follower indices
+        if (sysids[i] != _leader_sysid)
+        {
+            follower_index++;
         }
     }
 
@@ -634,8 +661,22 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned)
         return true;
     }
 
-    // Basic position: leader position + formation offset
-    pos_ned = leader->pos_ned + offset;
+    const float prediction_time_s = 2.0f;
+    Vector3f leader_velocity_prediction = leader->vel_ned * prediction_time_s;
+    Vector3f leader_position_predicted = leader->pos_ned + leader_velocity_prediction;
+    pos_ned = leader_position_predicted + offset;
+
+    if (_debug >= 2)
+    {
+        printf("Swarm (%d): Leader pos: (%.2f,%.2f), Vel: (%.2f,%.2f), Predicted pos: (%.2f,%.2f), Offset: (%.2f,%.2f), Desired pos: (%.2f,%.2f), Slot idx: %d\n",
+               (int)mavlink_system.sysid,
+               (double)leader->pos_ned.x, (double)leader->pos_ned.y,
+               (double)leader->vel_ned.x, (double)leader->vel_ned.y,
+               (double)leader_position_predicted.x, (double)leader_position_predicted.y,
+               (double)offset.x, (double)offset.y,
+               (double)pos_ned.x, (double)pos_ned.y,
+               (int)slot_index);
+    }
 
     // Apply neighbor repulsion
     apply_neighbor_repulsion(pos_ned);
@@ -654,7 +695,7 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
         return;
     }
 
-    for (uint8_t i = 0; i < AP_SWARM_MAX_NEIGHBORS_DEFAULT; i++)
+    for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (!_targets[i].active)
         {

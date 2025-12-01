@@ -89,7 +89,8 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
 AP_Swarm::AP_Swarm() : _active_neighbor_count(0),
                        _ahrs(AP::ahrs()),
                        _last_update_ms(0),
-                       _have_target(false)
+                       _have_target(false),
+                       _last_unknown_formation_msg_time_ms(0)
 {
     _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
@@ -508,6 +509,15 @@ Vector3f AP_Swarm::compute_formation_offset(uint8_t slot_index)
 
     default:
         offset.zero();
+
+        // Send a message to GCS every 5 seconds
+        uint32_t now_ms = AP_HAL::millis();
+        if (now_ms - _last_unknown_formation_msg_time_ms > 5000)
+        {
+            gcs().send_text(MAV_SEVERITY_WARNING, "Swarm (%d): Unknown formation type (%d), holding position",
+                            (int)mavlink_system.sysid, (int)formation);
+            _last_unknown_formation_msg_time_ms = now_ms;
+        }
         break;
     }
 
@@ -616,6 +626,13 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned)
 
     // Compute formation offset
     Vector3f offset = compute_formation_offset(slot_index);
+
+    // If offset is zero, then don't change position at all
+    if (offset.is_zero())
+    {
+        pos_ned = my_current_pos;
+        return true;
+    }
 
     // Basic position: leader position + formation offset
     pos_ned = leader->pos_ned + offset;

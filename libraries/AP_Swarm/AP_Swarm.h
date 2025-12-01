@@ -55,12 +55,11 @@ public:
     // Formation types
     enum class FormationType : uint8_t
     {
-        DISABLED = 0,
-        LEADER_ONLY = 1,
-        CIRCLE = 2,
-        HORIZ_LINE = 3,
-        VERT_LINE = 4,
-        GRID = 5
+        LEADER_ONLY = 0,
+        CIRCLE = 1,
+        HORIZ_LINE = 2,
+        VERT_LINE = 3,
+        GRID = 4
     };
 
 private:
@@ -108,6 +107,8 @@ private:
         {
         }
     };
+
+    uint32_t _last_unknown_formation_msg_time_ms;
 
     // Array of target entries
     TargetEntry _targets[AP_SWARM_MAX_NEIGHBORS_DEFAULT];

@@ -695,6 +695,99 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
         return;
     }
 
+    // Repel from Leader's movement path
+    TargetEntry *leader = get_leader_entry();
+    if (leader != nullptr)
+    {
+        Vector2f leader_vel_xy = Vector2f(leader->vel_ned.x, leader->vel_ned.y);
+        float leader_speed_xy = leader_vel_xy.length();
+        if (leader_speed_xy > 0.5f) // Faster than 0.5m/s
+        {
+            Vector2f leader_pos_xy(leader->pos_ned.x, leader->pos_ned.y);
+            Vector2f my_pos_xy(my_current_pos.x, my_current_pos.y);
+
+            // Get direction by normalizing velocity
+            Vector2f leader_dir_xy = leader_vel_xy;
+            leader_dir_xy.normalize();
+
+            // Vector from leader to me
+            Vector2f to_me_xy = my_pos_xy - leader_pos_xy;
+
+            // Calculate path projection length based on repel distance and leader speed (higher speed, longer distance)
+            float path_projection_length = _repel_distance * 2.0f + leader_speed_xy;
+
+            // Project to_me_xy onto leader_dir_xy to find closest point on leader's path
+            float projection_length = to_me_xy.dot(leader_dir_xy);
+            if (projection_length >= -5.0f && projection_length <= path_projection_length)
+            {
+                Vector2f closest_point_on_path_xy = leader_pos_xy + leader_dir_xy * projection_length;
+
+                // Get distance from me to closest point on path
+                Vector2f path_to_me = my_pos_xy - closest_point_on_path_xy;
+                float dist_to_path = path_to_me.length();
+
+                float path_repel_distance = _repel_distance * 2.0f; // Double repel distance for path repulsion
+
+                if (dist_to_path < path_repel_distance)
+                {
+                    // Repulsion vector points AWAY from path
+                    Vector2f repulsion_xy = path_to_me;
+                    repulsion_xy.normalize(); // Make it unit length
+
+                    float distance_difference = path_repel_distance - dist_to_path;
+                    repulsion_xy *= distance_difference; // Scale by how close we are
+
+                    // Apply repulsion to DESIRED position (push away from where we're going)
+                    pos_ned.x += repulsion_xy.x;
+                    pos_ned.y += repulsion_xy.y;
+
+                    if (_debug >= 2)
+                    {
+                        printf("Swarm (%d): Repelling from leader path, actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from path point (%.2f,%.2f), dist to path %.2f\n",
+                               (int)mavlink_system.sysid,
+                               (double)my_current_pos.x, (double)my_current_pos.y,
+                               (double)pos_ned.x, (double)pos_ned.y,
+                               (double)repulsion_xy.x, (double)repulsion_xy.y,
+                               (double)closest_point_on_path_xy.x, (double)closest_point_on_path_xy.y,
+                               (double)dist_to_path);
+                    }
+                }
+            }
+        }
+        else
+        { // Leader is not moving
+            Vector2f to_leader_xy(leader->pos_ned.x - my_current_pos.x,
+                                  leader->pos_ned.y - my_current_pos.y);
+            float dist_to_leader = to_leader_xy.length();
+
+            if (dist_to_leader < _repel_distance)
+            {
+                // Repulsion vector points AWAY from leader
+                Vector2f repulsion_xy = to_leader_xy * -1.0f;
+                repulsion_xy.normalize(); // Make it unit length
+
+                float distance_difference = _repel_distance - dist_to_leader;
+                repulsion_xy *= distance_difference; // Scale by how close we are
+
+                // Apply repulsion to DESIRED position (push away from where we're going)
+                pos_ned.x += repulsion_xy.x;
+                pos_ned.y += repulsion_xy.y;
+
+                if (_debug >= 2)
+                {
+                    printf("Swarm (%d): Repelling from stationary leader, actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from leader (%.2f,%.2f), dist %.2f\n",
+                           (int)mavlink_system.sysid,
+                           (double)my_current_pos.x, (double)my_current_pos.y,
+                           (double)pos_ned.x, (double)pos_ned.y,
+                           (double)repulsion_xy.x, (double)repulsion_xy.y,
+                           (double)leader->pos_ned.x, (double)leader->pos_ned.y,
+                           (double)dist_to_leader);
+                }
+            }
+        }
+    }
+
+    // Handle repulsion from neighbors, excluding the leader (as repulsion was already calculated above)
     for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (!_targets[i].active)
@@ -703,12 +796,12 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
         }
 
         // Don't repel from self
-        if (_targets[i].sysid == mavlink_system.sysid)
+        if (_targets[i].sysid == mavlink_system.sysid || _targets[i].sysid == _leader_sysid)
         {
             continue;
         }
 
-        // Calculate horizontal distance from OUR CURRENT POSITION to neighbor
+        // Calculate horizontal distance from our current pos to neighbor
         Vector2f to_neighbor_xy(_targets[i].pos_ned.x - my_current_pos.x,
                                 _targets[i].pos_ned.y - my_current_pos.y);
         float dist_xy = to_neighbor_xy.length();
@@ -719,17 +812,17 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
                    (int)mavlink_system.sysid, _targets[i].sysid, (double)dist_xy, (double)_repel_distance.get());
         }
 
-        // Apply repulsion if too close (including leader!)
+        // Apply repulsion if too close
         if (dist_xy < _repel_distance)
         {
-            // Repulsion vector points AWAY from neighbor
+            // Repulsion vector points away from neighbor
             Vector2f repulsion_xy = to_neighbor_xy * -1.0f;
             repulsion_xy.normalize(); // Make it unit length
 
             float distance_difference = _repel_distance - dist_xy;
             repulsion_xy *= distance_difference; // Scale by how close we are
 
-            // Apply repulsion to DESIRED position (push away from where we're going)
+            // Apply repulsion to desired position (push away from where we're going)
             pos_ned.x += repulsion_xy.x;
             pos_ned.y += repulsion_xy.y;
 

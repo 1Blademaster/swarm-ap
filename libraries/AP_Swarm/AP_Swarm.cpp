@@ -155,7 +155,7 @@ void AP_Swarm::update()
     // Debug output
     if (_debug >= 2 && _have_target)
     {
-        printf("Swarm (%d): Active neighbors: %d, Desired NED: %.1f,%.1f,%.1f",
+        printf("Swarm (%d): Active neighbors: %d, Desired NED: %.1f,%.1f,%.1f\n",
                (int)mavlink_system.sysid,
                _active_neighbor_count,
                (double)_desired_pos_ned.x,
@@ -218,7 +218,7 @@ void AP_Swarm::handle_global_position_int(const mavlink_global_position_int_t &p
 
     if (_debug >= 2)
     {
-        printf("Swarm (%d): GLOBAL_POS from sysid %d at NED: %.1f,%.1f,%.1f",
+        printf("Swarm (%d): GLOBAL_POS from sysid %d at NED: %.1f,%.1f,%.1f\n",
                (int)mavlink_system.sysid,
                sysid,
                (double)target->pos_ned.x,
@@ -296,7 +296,7 @@ void AP_Swarm::handle_follow_target(const mavlink_follow_target_t &packet, uint8
 
     if (_debug >= 2)
     {
-        printf("Swarm (%d): FOLLOW_TARGET from sysid %d at NED: %.1f,%.1f,%.1f",
+        printf("Swarm (%d): FOLLOW_TARGET from sysid %d at NED: %.1f,%.1f,%.1f\n",
                (int)mavlink_system.sysid,
                sysid,
                (double)target->pos_ned.x,

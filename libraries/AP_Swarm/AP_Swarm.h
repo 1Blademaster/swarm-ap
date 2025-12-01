@@ -108,8 +108,6 @@ private:
         }
     };
 
-    uint32_t _last_unknown_formation_msg_time_ms;
-
     // Array of target entries
     TargetEntry _targets[AP_SWARM_MAX_NEIGHBORS_DEFAULT];
     uint8_t _active_neighbor_count;
@@ -160,6 +158,7 @@ private:
     uint32_t _last_update_ms;  // Last time update() was called
     Vector3f _desired_pos_ned; // Desired position output
     bool _have_target;         // True if we have a valid target
+    uint32_t _last_unknown_formation_msg_time_ms;
 };
 
 namespace AP

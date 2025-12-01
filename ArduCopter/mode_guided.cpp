@@ -799,21 +799,19 @@ void ModeGuided::pos_control_run()
     AP_Swarm *swarm = AP::swarm();
     if (swarm != nullptr && swarm->have_target())
     {
-        Location swarm_target;
-        Vector3f swarm_vel;
+        Location swarm_target_pos;
 
-        if (swarm->get_target_location_and_velocity(swarm_target, swarm_vel))
+        if (swarm->get_target_location(swarm_target_pos))
         {
             // Convert swarm target location to NEU position
             Vector3p swarm_pos_neu_m;
             bool is_terrain_alt = false;
 
-            if (wp_nav->get_vector_NEU_m(swarm_target, swarm_pos_neu_m, is_terrain_alt))
+            if (wp_nav->get_vector_NEU_m(swarm_target_pos, swarm_pos_neu_m, is_terrain_alt))
             {
                 // Override position target with swarm target
                 guided_pos_target_neu_m = swarm_pos_neu_m;
                 guided_is_terrain_alt = is_terrain_alt;
-                // guided_vel_target_neu_ms = swarm_vel;
                 update_time_ms = millis(); // prevent timeout
 
                 // if (copter.g2.swarm.get_debug_level() >= 2)

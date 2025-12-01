@@ -61,20 +61,6 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX_NEIGH", 7, AP_Swarm, _max_neighbors, AP_SWARM_MAX_NEIGHBORS_DEFAULT),
 
-    // @Param: ATTR_GAIN
-    // @DisplayName: Attraction Gain
-    // @Description: Gain for attraction to formation position
-    // @Range: 0 2
-    // @User: Advanced
-    AP_GROUPINFO("ATTR_GAIN", 8, AP_Swarm, _attract_gain, 0.5f),
-
-    // @Param: REPEL_GAIN
-    // @DisplayName: Repulsion Gain
-    // @Description: Gain for repulsion from neighbors
-    // @Range: 0 5
-    // @User: Advanced
-    AP_GROUPINFO("REPEL_GAIN", 9, AP_Swarm, _repel_gain, 1.0f),
-
     // @Param: REPEL_DIST
     // @DisplayName: Repulsion Distance
     // @Description: Distance threshold for neighbor repulsion
@@ -95,7 +81,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Description: Debug output level
     // @Range: 0 3
     // @User: Advanced
-    AP_GROUPINFO("DEBUG", 12, AP_Swarm, _debug, 3),
+    AP_GROUPINFO("DEBUG", 12, AP_Swarm, _debug, 2),
 
     AP_GROUPEND};
 
@@ -163,17 +149,17 @@ void AP_Swarm::update()
         return;
     }
     // Compute desired position based on formation
-    _have_target = compute_desired_position(_desired_pos_ned, _desired_vel_ned);
+    _have_target = compute_desired_position(_desired_pos_ned);
 
     // Debug output
     if (_debug >= 2 && _have_target)
     {
-        gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Active neighbors: %d, Desired NED: %.1f,%.1f,%.1f",
-                        (int)mavlink_system.sysid,
-                        _active_neighbor_count,
-                        (double)_desired_pos_ned.x,
-                        (double)_desired_pos_ned.y,
-                        (double)_desired_pos_ned.z);
+        printf("Swarm (%d): Active neighbors: %d, Desired NED: %.1f,%.1f,%.1f",
+               (int)mavlink_system.sysid,
+               _active_neighbor_count,
+               (double)_desired_pos_ned.x,
+               (double)_desired_pos_ned.y,
+               (double)_desired_pos_ned.z);
     }
 }
 
@@ -231,12 +217,12 @@ void AP_Swarm::handle_global_position_int(const mavlink_global_position_int_t &p
 
     if (_debug >= 2)
     {
-        gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): GLOBAL_POS from sysid %d at NED: %.1f,%.1f,%.1f",
-                        (int)mavlink_system.sysid,
-                        sysid,
-                        (double)target->pos_ned.x,
-                        (double)target->pos_ned.y,
-                        (double)target->pos_ned.z);
+        printf("Swarm (%d): GLOBAL_POS from sysid %d at NED: %.1f,%.1f,%.1f",
+               (int)mavlink_system.sysid,
+               sysid,
+               (double)target->pos_ned.x,
+               (double)target->pos_ned.y,
+               (double)target->pos_ned.z);
     }
 }
 
@@ -309,12 +295,12 @@ void AP_Swarm::handle_follow_target(const mavlink_follow_target_t &packet, uint8
 
     if (_debug >= 2)
     {
-        gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): FOLLOW_TARGET from sysid %d at NED: %.1f,%.1f,%.1f",
-                        (int)mavlink_system.sysid,
-                        sysid,
-                        (double)target->pos_ned.x,
-                        (double)target->pos_ned.y,
-                        (double)target->pos_ned.z);
+        printf("Swarm (%d): FOLLOW_TARGET from sysid %d at NED: %.1f,%.1f,%.1f",
+               (int)mavlink_system.sysid,
+               sysid,
+               (double)target->pos_ned.x,
+               (double)target->pos_ned.y,
+               (double)target->pos_ned.z);
     }
 }
 
@@ -366,7 +352,7 @@ AP_Swarm::TargetEntry *AP_Swarm::get_leader_entry()
             // printf("Swarm (%d): Leader sysid %d found in slot %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i);
             return &_targets[i];
         }
-        else
+        else if (_debug >= 2)
         {
             printf("Swarm (%d): Leader sysid %d not found in slot %d, target %d is active: %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i, (int)_targets[i].sysid, _targets[i].active);
         }
@@ -582,13 +568,6 @@ int8_t AP_Swarm::get_my_slot_index()
 
     get_sorted_active_sysids(sysids, count);
 
-    // printf("Swarm (%d): Active sysids:", (int)mavlink_system.sysid);
-    // for (uint8_t i = 0; i < count; i++)
-    // {
-    //     printf(" %d at index %d", (int)sysids[i], i);
-    // }
-    // printf("\n");
-
     // Find our sysid in the sorted list
     uint8_t my_sysid = mavlink_system.sysid;
     for (uint8_t i = 0; i < count; i++)
@@ -604,7 +583,7 @@ int8_t AP_Swarm::get_my_slot_index()
 }
 
 // Compute desired position based on formation and neighbors
-bool AP_Swarm::compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned)
+bool AP_Swarm::compute_desired_position(Vector3f &pos_ned)
 {
     // Get leader position
     TargetEntry *leader = get_leader_entry();
@@ -621,7 +600,11 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned)
     int8_t slot_index = get_my_slot_index();
     if (slot_index < 0)
     {
-        printf("Swarm (%d): My sysid %d not found in active list\n", (int)mavlink_system.sysid, (int)mavlink_system.sysid);
+        if (_debug >= 2)
+        {
+
+            printf("Swarm (%d): My sysid %d not found in active list\n", (int)mavlink_system.sysid, (int)mavlink_system.sysid);
+        }
         return false;
     }
 
@@ -636,32 +619,15 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned)
 
     // Basic position: leader position + formation offset
     pos_ned = leader->pos_ned + offset;
-    vel_ned = leader->vel_ned; // Match leader velocity
-    // vel_ned = Vector3f(0.0f, 0.0f, 0.0f); // For now, zero desired velocity
-
-    // Vector2f pos_error_xy = Vector2f(pos_ned.x - my_current_pos.x, pos_ned.y - my_current_pos.y);
-    // // float horiz_error = pos_error_xy.length();
-
-    // Vector2f attraction_vel = pos_error_xy * _attract_gain;
-
-    // const float max_attraction_speed = 5.0f; // m/s
-    // float attraction_vel_mag = attraction_vel.length();
-    // if (attraction_vel_mag > max_attraction_speed)
-    // {
-    //     attraction_vel *= (max_attraction_speed / attraction_vel_mag);
-    // }
-
-    // vel_ned.x += attraction_vel.x;
-    // vel_ned.y += attraction_vel.y;
 
     // Apply neighbor repulsion
-    apply_neighbor_repulsion(pos_ned, vel_ned);
+    apply_neighbor_repulsion(pos_ned);
 
     return true;
 }
 
 // Apply repulsive forces from nearby neighbors
-void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned, Vector3f &vel_ned)
+void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
 {
     // Get our CURRENT position (not desired position) for repulsion calculation
     Vector3f my_current_pos;
@@ -704,11 +670,6 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned, Vector3f &vel_ned)
 
             float distance_difference = _repel_distance - dist_xy;
             repulsion_xy *= distance_difference; // Scale by how close we are
-            repulsion_xy *= _repel_gain;         // Scale by gain
-
-            // Scale by gain and how close we are (closer = stronger repulsion)
-            // float repulsion_magnitude = _repel_gain * distance_difference;
-            // repulsion_xy *= repulsion_magnitude;
 
             // Apply repulsion to DESIRED position (push away from where we're going)
             pos_ned.x += repulsion_xy.x;
@@ -734,7 +695,7 @@ bool AP_Swarm::have_target() const
 }
 
 // Get desired position and velocity for this vehicle in swarm
-bool AP_Swarm::get_target_location_and_velocity(Location &loc, Vector3f &vel_ned)
+bool AP_Swarm::get_target_location(Location &loc)
 {
     if (!_enabled || !have_target())
     {
@@ -752,10 +713,6 @@ bool AP_Swarm::get_target_location_and_velocity(Location &loc, Vector3f &vel_ned
     loc = ekf_origin;
     loc.offset(_desired_pos_ned.x, _desired_pos_ned.y);
     loc.alt = ekf_origin.alt - _desired_pos_ned.z * 100.0f; // Convert m to cm and flip Down to up
-
-    vel_ned.x = _desired_vel_ned.x;
-    vel_ned.y = _desired_vel_ned.y;
-    vel_ned.z = -_desired_vel_ned.z; // Flip down to up
 
     return true;
 }

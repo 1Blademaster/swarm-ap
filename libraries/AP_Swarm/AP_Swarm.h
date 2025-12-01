@@ -42,7 +42,7 @@ public:
     bool have_target() const;
 
     // Get desired position for this vehicle in swarm
-    bool get_target_location_and_velocity(Location &loc, Vector3f &vel_ned);
+    bool get_target_location(Location &loc);
 
     // Get number of active neighbors
     uint8_t get_active_neighbor_count() const { return _active_neighbor_count; }
@@ -135,10 +135,10 @@ private:
     int8_t get_my_slot_index();
 
     // Compute desired position based on formation and neighbors
-    bool compute_desired_position(Vector3f &pos_ned, Vector3f &vel_ned);
+    bool compute_desired_position(Vector3f &pos_ned);
 
     // Apply repulsive forces from nearby neighbors
-    void apply_neighbor_repulsion(Vector3f &pos_ned, Vector3f &vel_ned);
+    void apply_neighbor_repulsion(Vector3f &pos_ned);
 
     // References to vehicle systems (must be before parameters for initialization order)
     const AP_AHRS &_ahrs;
@@ -151,8 +151,6 @@ private:
     AP_Int8 _leader_sysid;        // SWARM_LEADER_SYSID: System ID of leader
     AP_Int16 _neighbor_timeout_s; // SWARM_TIMEOUT: Neighbor timeout in s
     AP_Int8 _max_neighbors;       // SWARM_MAX_NEIGH: Maximum neighbors to track
-    AP_Float _attract_gain;       // SWARM_ATTR_GAIN: Attraction gain
-    AP_Float _repel_gain;         // SWARM_REPEL_GAIN: Repulsion gain
     AP_Float _repel_distance;     // SWARM_REPEL_DIST: Repulsion activation distance
     AP_Int8 _alt_type;            // SWARM_ALT_TYPE: Altitude frame type
     AP_Int8 _debug;               // SWARM_DEBUG: Debug level
@@ -160,7 +158,6 @@ private:
     // Internal state
     uint32_t _last_update_ms;  // Last time update() was called
     Vector3f _desired_pos_ned; // Desired position output
-    Vector3f _desired_vel_ned; // Desired velocity output
     bool _have_target;         // True if we have a valid target
 };
 

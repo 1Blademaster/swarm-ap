@@ -139,6 +139,9 @@ private:
     // Apply repulsive forces from nearby neighbors
     void apply_neighbor_repulsion(Vector3f &pos_ned);
 
+    // Calculate repulsion from nearby neighbors based on trajectory
+    void apply_path_repulsion(Vector3f &my_current_pos, Vector3f &my_current_vel, Vector3f &pos_ned, TargetEntry &target);
+
     // References to vehicle systems (must be before parameters for initialization order)
     const AP_AHRS &_ahrs;
 

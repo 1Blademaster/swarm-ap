@@ -29,7 +29,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Units: m
     // @Range: 1 100
     // @User: Standard
-    AP_GROUPINFO("RADIUS", 3, AP_Swarm, _radius, 10.0f),
+    AP_GROUPINFO("RADIUS", 3, AP_Swarm, _radius, 25.0f),
 
     // @Param: SPACING
     // @DisplayName: Formation Spacing
@@ -37,7 +37,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Units: m
     // @Range: 1 50
     // @User: Standard
-    AP_GROUPINFO("SPACING", 4, AP_Swarm, _spacing, 10.0f),
+    AP_GROUPINFO("SPACING", 4, AP_Swarm, _spacing, 20.0f),
 
     // @Param: LEADER_ID
     // @DisplayName: Leader System ID
@@ -67,7 +67,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Units: m
     // @Range: 1 20
     // @User: Advanced
-    AP_GROUPINFO("REPEL_DIST", 10, AP_Swarm, _repel_distance, 10.0f),
+    AP_GROUPINFO("REPEL_DIST", 10, AP_Swarm, _repel_distance, 20.0f),
 
     // @Param: ALT_TYPE
     // @DisplayName: Altitude Type
@@ -693,105 +693,14 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
 {
     // Get our CURRENT position (not desired position) for repulsion calculation
     Vector3f my_current_pos;
-    if (!_ahrs.get_relative_position_NED_origin_float(my_current_pos))
+    Vector3f my_current_vel;
+    if (!_ahrs.get_relative_position_NED_origin_float(my_current_pos) ||
+        !_ahrs.get_velocity_NED(my_current_vel))
     {
-        printf("Swarm (%d): Unable to get own position for repulsion\n", (int)mavlink_system.sysid);
+        printf("Swarm (%d): Unable to get own position or velocity for repulsion\n", (int)mavlink_system.sysid);
         return;
     }
 
-    // Repel from Leader's movement path
-    TargetEntry *leader = get_leader_entry();
-    if (leader != nullptr)
-    {
-        Vector2f leader_vel_xy = Vector2f(leader->vel_ned.x, leader->vel_ned.y);
-        float leader_speed_xy = leader_vel_xy.length();
-        if (leader_speed_xy > 0.5f) // Faster than 0.5m/s
-        {
-            Vector2f leader_pos_xy(leader->pos_ned.x, leader->pos_ned.y);
-            Vector2f my_pos_xy(my_current_pos.x, my_current_pos.y);
-
-            // Get direction by normalizing velocity
-            Vector2f leader_dir_xy = leader_vel_xy;
-            leader_dir_xy.normalize();
-
-            // Vector from leader to me
-            Vector2f to_me_xy = my_pos_xy - leader_pos_xy;
-
-            // Calculate path projection length based on repel distance and leader speed (higher speed, longer distance)
-            float path_projection_length = _repel_distance * 2.0f + leader_speed_xy;
-
-            // Project to_me_xy onto leader_dir_xy to find closest point on leader's path
-            float projection_length = to_me_xy.dot(leader_dir_xy);
-            if (projection_length >= -5.0f && projection_length <= path_projection_length)
-            {
-                Vector2f closest_point_on_path_xy = leader_pos_xy + leader_dir_xy * projection_length;
-
-                // Get distance from me to closest point on path
-                Vector2f path_to_me = my_pos_xy - closest_point_on_path_xy;
-                float dist_to_path = path_to_me.length();
-
-                float path_repel_distance = _repel_distance * 2.0f; // Double repel distance for path repulsion
-
-                if (dist_to_path < path_repel_distance)
-                {
-                    // Repulsion vector points AWAY from path
-                    Vector2f repulsion_xy = path_to_me;
-                    repulsion_xy.normalize(); // Make it unit length
-
-                    float distance_difference = path_repel_distance - dist_to_path;
-                    repulsion_xy *= distance_difference; // Scale by how close we are
-
-                    // Apply repulsion to DESIRED position (push away from where we're going)
-                    pos_ned.x += repulsion_xy.x;
-                    pos_ned.y += repulsion_xy.y;
-
-                    if (_debug >= 2)
-                    {
-                        printf("Swarm (%d): Repelling from leader path, actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from path point (%.2f,%.2f), dist to path %.2f\n",
-                               (int)mavlink_system.sysid,
-                               (double)my_current_pos.x, (double)my_current_pos.y,
-                               (double)pos_ned.x, (double)pos_ned.y,
-                               (double)repulsion_xy.x, (double)repulsion_xy.y,
-                               (double)closest_point_on_path_xy.x, (double)closest_point_on_path_xy.y,
-                               (double)dist_to_path);
-                    }
-                }
-            }
-        }
-        else
-        { // Leader is not moving
-            Vector2f to_leader_xy(leader->pos_ned.x - my_current_pos.x,
-                                  leader->pos_ned.y - my_current_pos.y);
-            float dist_to_leader = to_leader_xy.length();
-
-            if (dist_to_leader < _repel_distance)
-            {
-                // Repulsion vector points AWAY from leader
-                Vector2f repulsion_xy = to_leader_xy * -1.0f;
-                repulsion_xy.normalize(); // Make it unit length
-
-                float distance_difference = _repel_distance - dist_to_leader;
-                repulsion_xy *= distance_difference; // Scale by how close we are
-
-                // Apply repulsion to DESIRED position (push away from where we're going)
-                pos_ned.x += repulsion_xy.x;
-                pos_ned.y += repulsion_xy.y;
-
-                if (_debug >= 2)
-                {
-                    printf("Swarm (%d): Repelling from stationary leader, actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from leader (%.2f,%.2f), dist %.2f\n",
-                           (int)mavlink_system.sysid,
-                           (double)my_current_pos.x, (double)my_current_pos.y,
-                           (double)pos_ned.x, (double)pos_ned.y,
-                           (double)repulsion_xy.x, (double)repulsion_xy.y,
-                           (double)leader->pos_ned.x, (double)leader->pos_ned.y,
-                           (double)dist_to_leader);
-                }
-            }
-        }
-    }
-
-    // Handle repulsion from neighbors, excluding the leader (as repulsion was already calculated above)
     for (uint8_t i = 0; i < _max_neighbors; i++)
     {
         if (!_targets[i].active)
@@ -800,44 +709,151 @@ void AP_Swarm::apply_neighbor_repulsion(Vector3f &pos_ned)
         }
 
         // Don't repel from self
-        if (_targets[i].sysid == mavlink_system.sysid || _targets[i].sysid == _leader_sysid)
+        if (_targets[i].sysid == mavlink_system.sysid)
         {
             continue;
         }
 
-        // Calculate horizontal distance from our current pos to neighbor
-        Vector2f to_neighbor_xy(_targets[i].pos_ned.x - my_current_pos.x,
-                                _targets[i].pos_ned.y - my_current_pos.y);
-        float dist_xy = to_neighbor_xy.length();
+        apply_path_repulsion(my_current_pos, my_current_vel, pos_ned, _targets[i]);
+    }
+}
 
-        if (_debug >= 3)
+void AP_Swarm::apply_path_repulsion(Vector3f &my_current_pos, Vector3f &my_current_vel, Vector3f &pos_ned, TargetEntry &target)
+{
+    Vector2f target_vel_xy = Vector2f(target.vel_ned.x, target.vel_ned.y);
+    float target_speed_xy = target_vel_xy.length();
+    if (target_speed_xy > 0.5f) // Faster than 0.5m/s
+    {
+        Vector2f target_pos_xy(target.pos_ned.x, target.pos_ned.y);
+        Vector2f my_pos_xy(my_current_pos.x, my_current_pos.y);
+
+        // Get direction by normalizing velocity
+        Vector2f target_dir_xy = target_vel_xy;
+        target_dir_xy.normalize();
+
+        // Vector from target to me
+        Vector2f to_me_xy = my_pos_xy - target_pos_xy;
+
+        // Calculate path projection length based on repel distance and target speed (higher speed, longer distance) for 3 seconds
+        float path_projection_length = target_speed_xy * 3.0f;
+
+        // Project to_me_xy onto target_dir_xy to find closest point on target's path
+        float projection_length = to_me_xy.dot(target_dir_xy);
+        if (projection_length >= -5.0f && projection_length <= path_projection_length)
         {
-            printf("Swarm (%d): Checking repulsion from sysid %d, horizontal dist %.1f (threshold %.1f)\n",
-                   (int)mavlink_system.sysid, _targets[i].sysid, (double)dist_xy, (double)_repel_distance.get());
-        }
+            Vector2f closest_point_on_path_xy = target_pos_xy + target_dir_xy * projection_length;
 
-        // Apply repulsion if too close
-        if (dist_xy < _repel_distance)
-        {
-            // Repulsion vector points away from neighbor
-            Vector2f repulsion_xy = to_neighbor_xy * -1.0f;
-            repulsion_xy.normalize(); // Make it unit length
+            // Get distance from me to closest point on path
+            Vector2f path_to_me = my_pos_xy - closest_point_on_path_xy;
+            float dist_to_path = path_to_me.length();
 
-            float distance_difference = _repel_distance - dist_xy;
-            repulsion_xy *= distance_difference; // Scale by how close we are
+            float path_repel_distance = _repel_distance;
 
-            // Apply repulsion to desired position (push away from where we're going)
-            pos_ned.x += repulsion_xy.x;
-            pos_ned.y += repulsion_xy.y;
-
-            if (_debug >= 2)
+            if (dist_to_path < path_repel_distance)
             {
-                printf("Swarm (%d): actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from sysid %d (%.2f,%.2f), dist %.2f\n",
-                       (int)mavlink_system.sysid,
-                       (double)my_current_pos.x, (double)my_current_pos.y,
-                       (double)pos_ned.x, (double)pos_ned.y,
-                       (double)repulsion_xy.x, (double)repulsion_xy.y,
-                       _targets[i].sysid, (double)_targets[i].pos_ned.x, (double)_targets[i].pos_ned.y, (double)dist_xy);
+                // Repulsion vector points awy from path
+                Vector2f repulsion_xy = path_to_me;
+                repulsion_xy.normalize(); // Make it unit length
+
+                float distance_difference = path_repel_distance - dist_to_path;
+                repulsion_xy *= distance_difference; // Scale by how close we are
+
+                // Apply repulsion to desired position
+                pos_ned.x += repulsion_xy.x;
+                pos_ned.y += repulsion_xy.y;
+
+                if (_debug >= 2)
+                {
+                    printf("Swarm (%d): Repelling from target path, actual pos: (%.2f,%.2f), target pos: (%.2f,%.2f), repulsion: (%.2f,%.2f) from path point (%.2f,%.2f), dist to path %.2f\n",
+                           (int)mavlink_system.sysid,
+                           (double)my_current_pos.x, (double)my_current_pos.y,
+                           (double)pos_ned.x, (double)pos_ned.y,
+                           (double)repulsion_xy.x, (double)repulsion_xy.y,
+                           (double)closest_point_on_path_xy.x, (double)closest_point_on_path_xy.y,
+                           (double)dist_to_path);
+                }
+            }
+        }
+    }
+    else
+    { // target is not moving
+        Vector2f target_pos_xy(target.pos_ned.x, target.pos_ned.y);
+        Vector2f my_pos_xy(my_current_pos.x, my_current_pos.y);
+        Vector2f my_vel_xy(my_current_vel.x, my_current_vel.y);
+        float my_speed_xy = my_vel_xy.length();
+
+        if (my_speed_xy > 0.5f) // Moving faster than 0.5 m/s
+        {
+            // Use my actual velocity direction for path prediction
+            Vector2f my_direction_xy = my_vel_xy;
+            my_direction_xy.normalize();
+
+            // Vector from my current position to the stationary target
+            Vector2f to_target_xy = target_pos_xy - my_pos_xy;
+
+            // Project target position onto my path
+            float projection_length = to_target_xy.dot(my_direction_xy);
+
+            // Calculate how far ahead to look based on my speed, 3 seconds ahead
+            float my_lookahead_distance = my_speed_xy * 3.0f;
+
+            // Only check if target is ahead of me on my path
+            if (projection_length > 0.0f && projection_length < my_lookahead_distance)
+            {
+                // Find closest point on my path to the target
+                Vector2f closest_point_on_my_path = my_pos_xy + my_direction_xy * projection_length;
+
+                // Distance from target to my path
+                Vector2f target_to_my_path = target_pos_xy - closest_point_on_my_path;
+                float dist_from_target_to_my_path = target_to_my_path.length();
+
+                if (dist_from_target_to_my_path < _repel_distance)
+                {
+                    // My path will come too close to the stationary target
+                    // Apply repulsion perpendicular to my path
+                    Vector2f repulsion_xy = target_to_my_path * -1.0f; // Push away from target
+                    repulsion_xy.normalize();
+
+                    float distance_difference = _repel_distance - dist_from_target_to_my_path;
+                    repulsion_xy *= distance_difference;
+
+                    pos_ned.x += repulsion_xy.x;
+                    pos_ned.y += repulsion_xy.y;
+
+                    if (_debug >= 2)
+                    {
+                        printf("Swarm (%d): My path collision with stationary target sysid %d - dist_to_my_path: %.2f, projection: %.2f, my_speed: %.2f, repulsion: (%.2f,%.2f)\n",
+                               (int)mavlink_system.sysid, target.sysid,
+                               (double)dist_from_target_to_my_path, (double)projection_length, (double)my_speed_xy,
+                               (double)repulsion_xy.x, (double)repulsion_xy.y);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // I'm not moving much, use simple point-to-point repulsion
+            Vector2f to_target_xy = target_pos_xy - my_pos_xy;
+            float dist_to_target = to_target_xy.length();
+
+            if (dist_to_target < _repel_distance)
+            {
+                Vector2f repulsion_xy = to_target_xy * -1.0f;
+                repulsion_xy.normalize();
+
+                float distance_difference = _repel_distance - dist_to_target;
+                repulsion_xy *= distance_difference;
+
+                pos_ned.x += repulsion_xy.x;
+                pos_ned.y += repulsion_xy.y;
+
+                if (_debug >= 2)
+                {
+                    printf("Swarm (%d): POINT REPULSION from stationary target sysid %d - dist: %.2f, repulsion: (%.2f,%.2f)\n",
+                           (int)mavlink_system.sysid, target.sysid,
+                           (double)dist_to_target,
+                           (double)repulsion_xy.x, (double)repulsion_xy.y);
+                }
             }
         }
     }

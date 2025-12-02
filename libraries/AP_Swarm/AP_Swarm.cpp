@@ -21,7 +21,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Description: Type of formation for swarm
     // @Values: 0:Leader Only,1:Circle,2:Horizontal Line,3:Vertical Line,4:Grid
     // @User: Standard
-    AP_GROUPINFO("FORMATION", 2, AP_Swarm, _formation_type, (uint8_t)FormationType::VERT_LINE),
+    AP_GROUPINFO("FORMATION", 2, AP_Swarm, _formation_type, (uint8_t)FormationType::CIRCLE),
 
     // @Param: RADIUS
     // @DisplayName: Formation Radius
@@ -450,8 +450,7 @@ Vector3f AP_Swarm::compute_formation_offset(uint8_t slot_index)
         // Arrange vehicles in a circle around leader
         // Assume we have N vehicles total (including leader at index 0)
         // This vehicle is at slot_index
-        uint8_t num_followers = _active_neighbor_count; // Includes leader
-        if (num_followers <= 1)
+        if (_active_neighbor_count <= 1)
         {
             offset.zero();
             break;
@@ -465,11 +464,16 @@ Vector3f AP_Swarm::compute_formation_offset(uint8_t slot_index)
         }
         else
         {
-            float angle = 2.0f * M_PI * (slot_index - 1) / (num_followers - 1);
+            float angle = 2.0f * M_PI * (slot_index - 1) / (_active_neighbor_count);
             float radius = _radius;
             offset.x = radius * cosf(angle); // North
             offset.y = radius * sinf(angle); // East
             offset.z = 0.0f;                 // Same altitude as leader
+            printf("Swarm (%d): Circle formation slot %d at angle %.2f rad with %d total drones\n",
+                   (int)mavlink_system.sysid,
+                   slot_index,
+                   (double)angle,
+                   (int)(_active_neighbor_count));
         }
         break;
     }

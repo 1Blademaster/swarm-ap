@@ -52,7 +52,7 @@ const AP_Param::GroupInfo AP_Swarm::var_info[] = {
     // @Units: s
     // @Range: 1 30
     // @User: Standard
-    AP_GROUPINFO("TIMEOUT", 6, AP_Swarm, _neighbor_timeout_s, 5.0f),
+    AP_GROUPINFO("TIMEOUT", 6, AP_Swarm, _neighbor_timeout_s, 2.0f),
 
     // @Param: MAX_NEIGH
     // @DisplayName: Max Neighbors
@@ -178,7 +178,13 @@ void AP_Swarm::handle_global_position_int(const mavlink_global_position_int_t &p
         return;
     }
 
-    // Get or create target entry
+    // Ignore GCS heartbeats for swarm tracking
+    // if (sysid == 255)
+    // {
+    //     return;
+    // }
+
+    // Get target entry
     TargetEntry *target = get_target_entry(sysid);
     if (target == nullptr)
     {
@@ -212,8 +218,8 @@ void AP_Swarm::handle_global_position_int(const mavlink_global_position_int_t &p
     }
 
     // Update timing
-    target->last_update_ms = now_ms;
-    target->msg_time_ms = packet.time_boot_ms;
+    target->last_position_update_ms = now_ms;
+    target->position_msg_time_ms = packet.time_boot_ms;
     target->active = true;
 
     if (_debug >= 3)
@@ -227,41 +233,94 @@ void AP_Swarm::handle_global_position_int(const mavlink_global_position_int_t &p
     }
 }
 
-// Find or create a target entry for a given sysid
+void AP_Swarm::handle_heartbeat(const mavlink_heartbeat_t &packet, uint8_t sysid)
+{
+    if (!_enabled)
+    {
+        return;
+    }
+
+    // Don't track our own heartbeat
+    if (sysid == mavlink_system.sysid || sysid == 255 || packet.type == MAV_TYPE_GCS)
+    {
+        return;
+    }
+
+    if ((packet.base_mode & MAV_MODE_FLAG_SAFETY_ARMED) == 0)
+    {
+        // If in targets list, remove from the list when disarmed
+        TargetEntry *target = get_target_entry(sysid);
+        if (target != nullptr)
+        {
+            // Delete from targets list
+            *target = TargetEntry(); // Reset entry
+            if (_debug >= 1)
+            {
+                gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Removed target sysid %d (disarmed)", (int)mavlink_system.sysid, sysid);
+            }
+        }
+    }
+    else
+    {
+        // If not in targets list, then add when armed
+        TargetEntry *target = get_target_entry(sysid);
+        if (target == nullptr)
+        {
+            // Create new target entry
+            for (uint8_t i = 0; i < _max_neighbors; i++)
+            {
+                if (_targets[i].deleted)
+                {
+                    _targets[i] = TargetEntry(); // Reset entry
+                    _targets[i].sysid = sysid;
+                    _targets[i].deleted = false;
+                    _targets[i].active = false;
+
+                    if (_debug >= 1)
+                    {
+                        gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Added target sysid %d (armed)", (int)mavlink_system.sysid, sysid);
+                    }
+                    break;
+                }
+            }
+        }
+        else
+        {
+            // Already in targets list, do nothing
+        }
+    }
+
+    if (_debug >= 3)
+    {
+        printf("Swarm (%d): HEARTBEAT from sysid %d\n",
+               (int)mavlink_system.sysid,
+               sysid);
+    }
+}
+
+// Find a target entry for a given sysid
 AP_Swarm::TargetEntry *AP_Swarm::get_target_entry(uint8_t sysid)
 {
+    if (sysid == mavlink_system.sysid || sysid == 255)
+    {
+        // Invalid sysid or our own sysid
+        return nullptr;
+    }
+
     // First, try to find existing entry
     for (uint8_t i = 0; i < _max_neighbors; i++)
     {
-        if (_targets[i].active && _targets[i].sysid == sysid)
+        if (_targets[i].deleted)
+        {
+            continue;
+        }
+
+        if (_targets[i].sysid == sysid)
         {
             return &_targets[i];
         }
     }
 
-    // Not found, create a new entry in first available slot
-    for (uint8_t i = 0; i < _max_neighbors; i++)
-    {
-        if (!_targets[i].active)
-        {
-            _targets[i] = TargetEntry(); // Reset entry
-            _targets[i].sysid = sysid;
-            _targets[i].active = true;
-
-            if (_debug >= 1)
-            {
-                gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Added target sysid %d", (int)mavlink_system.sysid, sysid);
-            }
-
-            return &_targets[i];
-        }
-    }
-
-    // No available slots
-    if (_debug >= 1)
-    {
-        gcs().send_text(MAV_SEVERITY_WARNING, "Swarm (%d): No slots available for sysid %d", (int)mavlink_system.sysid, sysid);
-    }
     return nullptr;
 }
 
@@ -270,7 +329,7 @@ AP_Swarm::TargetEntry *AP_Swarm::get_leader_entry()
 {
     for (uint8_t i = 0; i < _max_neighbors; i++)
     {
-        if (_targets[i].active && _targets[i].sysid == _leader_sysid)
+        if (!_targets[i].deleted && _targets[i].active && _targets[i].sysid == _leader_sysid)
         {
             // printf("Swarm (%d): Leader sysid %d found in slot %d\n", (int)mavlink_system.sysid, (int)_leader_sysid, i);
             return &_targets[i];
@@ -295,12 +354,12 @@ void AP_Swarm::remove_stale_targets()
     {
         if (_targets[i].active)
         {
-            if (now_ms - _targets[i].last_update_ms > timeout_ms)
+            if (now_ms - _targets[i].last_position_update_ms > timeout_ms)
             {
                 // Target has timed out
                 if (_debug >= 1)
                 {
-                    uint32_t time_since_update = now_ms - _targets[i].last_update_ms;
+                    uint32_t time_since_update = now_ms - _targets[i].last_position_update_ms;
                     gcs().send_text(MAV_SEVERITY_INFO, "Swarm (%d): Removed stale target sysid %d (elapsed: %u ms, threshold: %u ms)",
                                     (int)mavlink_system.sysid, _targets[i].sysid,
                                     (unsigned int)time_since_update, (unsigned int)timeout_ms);
@@ -370,8 +429,8 @@ Vector3f AP_Swarm::compute_formation_offset(uint8_t slot_index)
     case FormationType::CIRCLE:
     {
         // Arrange vehicles in a circle around leader
-        // Assume we have N vehicles total (including leader at index 0)
-        // This vehicle is at slot_index
+
+        // Checks there are at least 2 other drones to form a circle
         if (_active_neighbor_count <= 1)
         {
             offset.zero();
@@ -391,11 +450,6 @@ Vector3f AP_Swarm::compute_formation_offset(uint8_t slot_index)
             offset.x = radius * cosf(angle); // North
             offset.y = radius * sinf(angle); // East
             offset.z = 0.0f;                 // Same altitude as leader
-            printf("Swarm (%d): Circle formation slot %d at angle %.2f rad with %d total drones\n",
-                   (int)mavlink_system.sysid,
-                   slot_index,
-                   (double)angle,
-                   (int)(_active_neighbor_count));
         }
         break;
     }
@@ -565,7 +619,6 @@ bool AP_Swarm::compute_desired_position(Vector3f &pos_ned)
     {
         if (_debug >= 2)
         {
-
             printf("Swarm (%d): My sysid %d not found in active list\n", (int)mavlink_system.sysid, (int)mavlink_system.sysid);
         }
         return false;

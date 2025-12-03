@@ -33,6 +33,7 @@ public:
 
     // Handle incoming MAVLink messages
     void handle_global_position_int(const mavlink_global_position_int_t &packet, uint8_t sysid);
+    void handle_heartbeat(const mavlink_heartbeat_t &packet, uint8_t sysid);
 
     // Check if swarm mode is enabled
     bool enabled() const { return _enabled; }
@@ -67,9 +68,10 @@ private:
     // Per-target data structure
     struct TargetEntry
     {
-        uint8_t sysid;           // MAVLink system ID of this target
-        bool active;             // Is this entry currently active/valid?
-        uint32_t last_update_ms; // Last time data was received
+        uint8_t sysid;                    // MAVLink system ID of this target
+        bool deleted;                     // Is this entry deleted?
+        bool active;                      // Is this entry's position currently active/valid?
+        uint32_t last_position_update_ms; // Last time data was received
 
         // Position and velocity data (NED frame relative to EKF origin)
         Vector3f pos_ned;   // Position in meters (North, East, Down)
@@ -84,23 +86,24 @@ private:
         float heading_rate_rads; // Heading rate in rad/s
 
         // Timing and jitter correction
-        uint32_t msg_time_ms;   // Message timestamp from sender
-        int32_t time_offset_ms; // Time offset correction for jitter
+        uint32_t position_msg_time_ms; // Message timestamp from sender
+        int32_t time_offset_ms;        // Time offset correction for jitter
 
         // Message source tracking
         bool has_follow_target; // True if FOLLOW_TARGET data available
 
         // Constructor
         TargetEntry() : sysid(0),
+                        deleted(true),
                         active(false),
-                        last_update_ms(0),
+                        last_position_update_ms(0),
                         pos_ned(),
                         vel_ned(),
                         accel_ned(),
                         location(),
                         heading_rad(0.0f),
                         heading_rate_rads(0.0f),
-                        msg_time_ms(0),
+                        position_msg_time_ms(0),
                         time_offset_ms(0),
                         has_follow_target(false)
         {
@@ -111,7 +114,7 @@ private:
     TargetEntry _targets[AP_SWARM_MAX_NEIGHBORS_DEFAULT];
     uint8_t _active_neighbor_count;
 
-    // Find or create a target entry for a given sysid
+    // Find a target entry for a given sysid
     TargetEntry *get_target_entry(uint8_t sysid);
 
     // Find the leader target entry

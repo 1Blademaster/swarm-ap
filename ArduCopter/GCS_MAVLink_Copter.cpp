@@ -1420,6 +1420,13 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
         copter.g2.swarm.handle_global_position_int(packet, msg.sysid);
         break;
     }
+    case MAVLINK_MSG_ID_HEARTBEAT:
+    {
+        mavlink_heartbeat_t packet;
+        mavlink_msg_heartbeat_decode(&msg, &packet);
+        copter.g2.swarm.handle_heartbeat(packet, msg.sysid);
+        break;
+    }
     default:
         GCS_MAVLINK::handle_message(msg);
         break;

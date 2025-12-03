@@ -33,7 +33,6 @@ public:
 
     // Handle incoming MAVLink messages
     void handle_global_position_int(const mavlink_global_position_int_t &packet, uint8_t sysid);
-    void handle_follow_target(const mavlink_follow_target_t &packet, uint8_t sysid);
 
     // Check if swarm mode is enabled
     bool enabled() const { return _enabled; }

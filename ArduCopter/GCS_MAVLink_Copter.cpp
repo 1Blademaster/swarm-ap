@@ -1420,13 +1420,6 @@ void GCS_MAVLINK_Copter::handle_message(const mavlink_message_t &msg)
         copter.g2.swarm.handle_global_position_int(packet, msg.sysid);
         break;
     }
-    case MAVLINK_MSG_ID_FOLLOW_TARGET:
-    {
-        mavlink_follow_target_t packet;
-        mavlink_msg_follow_target_decode(&msg, &packet);
-        copter.g2.swarm.handle_follow_target(packet, msg.sysid);
-        break;
-    }
     default:
         GCS_MAVLINK::handle_message(msg);
         break;
